@@ -9,6 +9,7 @@ from fractions import Fraction
 from sage.all import *
 from sage.rings.number_field.S_unit_solver import log_p
 
+
 def padic_log(value, ideal, prec=50):
     log_val = log_p(value, ideal, prec)
     return log_val
@@ -73,9 +74,16 @@ class Constants:
         d2 = self.calculate_d2()
         self.constants["d2"] = d2
 
-        N_list = self.calculate_Nt()
+        C5t_list = self.calculate_C5t_list(d2)
 
-        dt_list = self.calculate_Dt(C5_list, N_list, d1)
+        Nt_list = self.calculate_Nt(2, C5t_list, d0, d1)
+        self.constants["Nt_list"] = Nt_list
+
+        N_bounds = []
+        self.constants["N_bounds"] = N_bounds
+
+        Z_bounds = []
+        self.constants["Z_bounds"] = Z_bounds
 
         return self.constants
 
@@ -109,7 +117,7 @@ class Constants:
             """
             p = self.primes[i]
             p_ideal = K.primes_above(p)[0]
-            alpha_over_beta = K.gen(0) / (K.gen(0) - self.A)
+            alpha_over_beta = K.gen(0) / (2 * K.gen(0) - self.A)
             print(alpha_over_beta)
             p_order = padic_order(padic_log(alpha_over_beta, p_ideal, prec=50).norm(), p)
             term = p_order + (2 / math.log(p)) + c6_list[i]
@@ -124,37 +132,55 @@ class Constants:
             c10_list.append(term)
         return c10_list
 
-    def calculate_C1t(self, d0):
-        return d0 * (num_terms - t + 1) + (t - 1) * abs(self.b) / self.sqrtdelta
+    def calculate_C1t(self, t, d0):
+        if t < 2:
+            raise ValueError("Invalid value of t.")
+        return d0 * (self.num_terms - t + 1) + (t - 1) * abs(self.b) / self.sqrtdelta
     
     def calculate_C2t(self, t, d0):
-        return (t - 1) * abs(self.b / self.a) + (num_terms - t + 1) * d0 * self.sqrtdelta / abs(a)
+        if t < 2:
+            raise ValueError("Invalid value of t.")
+        return (t - 1) * abs(self.b / self.a) + (self.num_terms - t + 1) * d0 * self.sqrtdelta / abs(self.a)
     
     def calculate_C3t(self, t, d0):
-        return calculate_C1t(t, d0) * self.sqrtdelta / abs(a)
+        if t < 2:
+            raise ValueError("Invalid value of t.")
+        return self.calculate_C1t(t, d0) * self.sqrtdelta / abs(self.a)
 
     def calculate_C4t(self, t, d0):
-        return max(calculate_C3t(t, d0), calculate_C2t(t, d0))
+        if t < 2:
+            raise ValueError("Invalid value of t.")
+        return max(self.calculate_C3t(t, d0), self.calculate_C2t(t, d0))
     
-    def calculate_C5t(self, t, d2):
-        return 2 * (math.log(d2) + 0.5 * math.log(self.delta)) + t * math.log(4)
+    def calculate_C5t_list(self, d2):
+        C5t_list = [None]
+        for t in range(2, self.num_terms + 1):
+            term = 2 * (math.log(d2) + 0.5 * math.log(self.delta)) + t * math.log(4)
+            C5t_list.append(term)
+        return C5t_list
         
-    def calculate_Nt(self, ):
-        N_list = [None]
-        return
+    def calculate_Nt(self, t, C5t_list, d0, d1):
+        Nt_list = [None]
 
-    def calculate_Dt(self, C5_list, N_list, d1):
-        Dt_list = [None, None]
+        for t in range(2, self.num_terms + 1):
+            numerator = self.calculate_Dt(t, Nt_list, C5t_list, d0, d1) + math.log(self.calculate_C4t(t, d0))
+            alpha_over_beta = self.alpha / self.beta
+            denominator = math.log(max(alpha_over_beta, self.alpha))
+            term = numerator / denominator
+            Nt_list.append(term)
 
-        for t in range(2, self.num_terms):
-            coefficient = 1.4 * (30 ** 5) * (2 ** 4.5) * 4
-            numeric_constant = coefficient * 4 * (1 + math.log(2)) * (1 + math.log(d1)) * (2 * math.log(self.alpha))
-            prime_constant = math.prod([2 * math.log(p) for p in self.primes])
-            t_term = C5_list[t - 2]
-            term = numeric_constant * prime_constant * t_term
-            Dt_list.append(term)
+        return Nt_list
 
-        return Dt_list
+    def calculate_Dt(self, t, Nt_list, C5t_list, d0, d1):
+        coefficient = 1.4 * (30 ** 5) * (2 ** 4.5) * 4
+        numeric_constant = coefficient * 4 * (1 + math.log(2)) * (1 + math.log(d1)) * (2 * math.log(self.alpha))
+        prime_constant = math.prod([2 * math.log(p) for p in self.primes])
+        t_term = C5t_list[t - 1]
+        sum_Nt = 0 if t == 2 else sum(Nt_list[1:(t - 1)])
+
+        term = numeric_constant * prime_constant * (t_term + sum_Nt)
+
+        return term
 
     def calculate_d0(self):
         return (abs(self.a) + abs(self.b)) / self.sqrtdelta
@@ -163,9 +189,22 @@ class Constants:
         return 1 + max([d0 * self.alpha / math.log(p) for p in self.primes])
     
     def calculate_d2(self):
-        max_a = max(abs(a), 1/abs(a))
-        max_b = max(abs(b), 1/abs(b))
+        max_a = max(abs(self.a), 1/abs(self.a))
+        max_b = max(abs(self.b), 1/abs(self.b))
         return max(max_a, max_b)
+
+    def calculate_Z_bounds(self):
+        """
+        Calculates bounds on z_i (i.e. the parameter on the exponents of the primes)
+        """
+        Z_bounds = []
+
+    def calculate_N_bounds(self):
+        """
+        Calculates bounds on n_i (i.e. the parameter of the recurrence sequence).
+        """
+        N_bounds = []
+        return
 
     def log_star(self, x):
         return math.log(max(x, 1))
@@ -179,9 +218,9 @@ if __name__ == "__main__":
         B = 1,
         alpha = (1 + sqrt(5))/2,
         beta = (1 - sqrt(5))/2,
-        num_terms = 3,
+        num_terms = 5,
         w = 1,
-        primes = [2, 3]
+        primes = [2, 3, 5]
     )
 
     c = constants.calculate_constants()
