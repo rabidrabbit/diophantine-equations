@@ -9,6 +9,8 @@ from fractions import Fraction
 from sage.all import *
 from sage.rings.number_field.S_unit_solver import log_p
 
+def get_primes_list(min_num, max_num):
+    return list(primes(max_num))
 
 def padic_log(value, ideal, prec=50):
     log_val = log_p(value, ideal, prec)
@@ -27,15 +29,15 @@ class Constants:
         self.alpha = alpha
         self.beta = beta
         self.num_terms = num_terms
-        self.delta = abs(alpha - beta)
-        self.sqrtdelta = math.sqrt(self.delta)
+        self.delta = abs(alpha - beta) ** 2
+        self.sqrtdelta = abs(alpha - beta)
         self.w = w
         self.primes = primes
 
         self.constants = {}
     
     def calculate_constants(self):
-        c1 = self.num_terms * (abs(self.a) + abs(self.b))/self.delta
+        c1 = self.num_terms * (abs(self.a) + abs(self.b))/self.sqrtdelta
         self.constants["c1"] = c1
 
         c2 = self.log_star(c1) / (math.log(self.alpha) * abs(self.w))
@@ -79,10 +81,13 @@ class Constants:
         Nt_list = self.calculate_Nt(2, C5t_list, d0, d1)
         self.constants["Nt_list"] = Nt_list
 
-        N_bounds = []
-        self.constants["N_bounds"] = N_bounds
+        C6 = self.calculate_C6(c3)
+        self.constants["C6"] = C6
 
-        Z_bounds = []
+        n1_bound = self.calculate_n1_bound(C6, c10_list, Nt_list)
+        self.constants["n1_bound"] = n1_bound
+
+        Z_bounds = self.calculate_Z_bounds(n1_bound)
         self.constants["Z_bounds"] = Z_bounds
 
         return self.constants
@@ -117,8 +122,7 @@ class Constants:
             """
             p = self.primes[i]
             p_ideal = K.primes_above(p)[0]
-            alpha_over_beta = K.gen(0) / (2 * K.gen(0) - self.A)
-            print(alpha_over_beta)
+            alpha_over_beta = K.gen(0) / (self.A - K.gen(0))
             p_order = padic_order(padic_log(alpha_over_beta, p_ideal, prec=50).norm(), p)
             term = p_order + (2 / math.log(p)) + c6_list[i]
             c9_list.append(term)
@@ -131,6 +135,13 @@ class Constants:
             term = sum_l / math.log(self.alpha) + c5
             c10_list.append(term)
         return c10_list
+
+    def calculate_C6(self, c3):
+        P = max(self.primes)
+        sum_term = max(math.log(abs(2 * self.a * self.alpha)), math.log(abs(2 * self.b * self.beta))) + 0.24 / (self.num_terms - 1)
+        term = 17.5 * (self.num_terms - 1) * math.log(self.alpha) * sum_term
+        C6 = max(c3, term, P ** 10)
+        return C6
 
     def calculate_C1t(self, t, d0):
         if t < 2:
@@ -155,7 +166,7 @@ class Constants:
     def calculate_C5t_list(self, d2):
         C5t_list = [None]
         for t in range(2, self.num_terms + 1):
-            term = 2 * (math.log(d2) + 0.5 * math.log(self.delta)) + t * math.log(4)
+            term = 2 * (math.log(d2) + 0.5 * math.log(self.sqrtdelta)) + t * math.log(4)
             C5t_list.append(term)
         return C5t_list
         
@@ -193,18 +204,31 @@ class Constants:
         max_b = max(abs(self.b), 1/abs(self.b))
         return max(max_a, max_b)
 
-    def calculate_Z_bounds(self):
+    def calculate_Z_bounds(self, n1_bound):
         """
         Calculates bounds on z_i (i.e. the parameter on the exponents of the primes)
         """
         Z_bounds = []
+        for p in self.primes:
+            coefficient = 2 * math.log(self.alpha) / math.log(p)
+            term = coefficient * n1_bound
+            Z_bounds.append(term)
+        return Z_bounds
 
-    def calculate_N_bounds(self):
+    def calculate_n1_bound(self, C6, c10_list, Nt_list):
         """
-        Calculates bounds on n_i (i.e. the parameter of the recurrence sequence).
+        Calculates bounds on n_1 (i.e. the parameters of the recurrence sequence).
         """
-        N_bounds = []
-        return
+        n1_bound = -1
+        power_of_2 = 2 ** (self.num_terms + 1)
+        Nk = Nt_list[self.num_terms - 1]
+        for i in range(len(self.primes)):
+            kth_root_term = math.pow(c10_list[i] * (self.num_terms - 1) * Nk, 1/(self.num_terms + 1))
+            log_term = math.log( (self.num_terms + 1) ** (self.num_terms + 1) * c10_list[i] * (self.num_terms - 1) * Nk )
+            first_term = power_of_2 * (kth_root_term * log_term) ** (self.num_terms + 1)
+            euler_term = (2 * math.e) ** (2 * self.num_terms + 2)
+            n1_bound = max(n1_bound, first_term, euler_term, C6)
+        return n1_bound
 
     def log_star(self, x):
         return math.log(max(x, 1))
@@ -218,9 +242,9 @@ if __name__ == "__main__":
         B = 1,
         alpha = (1 + sqrt(5))/2,
         beta = (1 - sqrt(5))/2,
-        num_terms = 5,
+        num_terms = 2,
         w = 1,
-        primes = [2, 3, 5]
+        primes = get_primes_list(1, 200)
     )
 
     c = constants.calculate_constants()
