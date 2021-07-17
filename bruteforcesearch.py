@@ -8,7 +8,6 @@ given that the bounds on the coefficients are sufficiently small.
 
 class BruteForceSearch:
     def __init__(self, a, b, A, B, alpha, beta, num_terms, primes, debug_flag=False):
-        print("initiated.")
         self.a = a
         self.b = b
         self.A = A
@@ -18,9 +17,11 @@ class BruteForceSearch:
         self.num_terms = num_terms
         self.primes = primes
 
-    def search(self):
+    def search(self, bound):
         """
         Parallel implementation of brute-force search.
         """
+        memo = []
         solutions = []
+
         return solutions

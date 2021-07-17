@@ -21,7 +21,7 @@ def padic_order(value, p):
     return L(value).ordp()
 
 class Constants:
-    def __init__(self, a, b, A, B, alpha, beta, num_terms, w, primes, debug_flag=False):
+    def __init__(self, a, b, A, B, alpha, beta, delta, num_terms, w, primes, debug_flag=False):
         self.a = a
         self.b = b
         self.A = A
@@ -29,7 +29,7 @@ class Constants:
         self.alpha = alpha
         self.beta = beta
         self.num_terms = num_terms
-        self.delta = abs(alpha - beta) ** 2
+        self.delta = delta
         self.sqrtdelta = abs(alpha - beta)
         self.w = w
         self.primes = primes
@@ -44,8 +44,8 @@ class Constants:
         self.constants["c2"] = c2
 
         golden_ratio = (1 + math.sqrt(5))/2
-        c3_left_term = 2
-        c3_right_term = 2
+        c3_left_term = self.log_star(2 * self.num_terms * abs(self.b) * golden_ratio / (math.log(self.alpha) * abs(self.a) * (golden_ratio - 1)))
+        c3_right_term = self.log_star(2 * self.num_terms * abs(self.b) * golden_ratio / (math.log(abs(self.alpha / self.beta)) * abs(self.a) * (golden_ratio - 1)))
         c3 = max(c3_left_term, c3_right_term)
         self.constants["c3"] = c3
 
@@ -64,7 +64,10 @@ class Constants:
         c9_list = self.calculate_c9_list(c6_list)
         self.constants["c9_list"] = c9_list
 
-        c10_list = self.calculate_c10_list(c5, c8_list)
+        c11_list = self.calculate_c11_list(c6_list, c8_list, c9_list)
+        self.constants["c11_list"] = c11_list
+
+        c10_list = self.calculate_c10_list(c5, c11_list)
         self.constants["c10_list"] = c10_list
 
         d0 = self.calculate_d0()
@@ -128,13 +131,24 @@ class Constants:
             c9_list.append(term)
         return c9_list
 
-    def calculate_c10_list(self, c5, c8_list):
+    def calculate_c10_list(self, c5, c11_list):
         c10_list = []
-        for i in range(len(c8_list)):
-            sum_l = sum([c8_list[i] * math.log(p) for p in self.primes])
+        for i in range(len(self.primes)):
+            sum_l = sum([c11_list[i] * math.log(p) for p in self.primes])
             term = sum_l / math.log(self.alpha) + c5
             c10_list.append(term)
         return c10_list
+    
+    def calculate_c11_list(self, c6_list, c8_list, c9_list):
+        c11_list = []
+        for i in range(len(self.primes)):
+            p = self.primes[i]
+            max_term = max(math.log(self.alpha), math.log(p))
+            left_term = self.calculate_bugeaud_constant(p) * max_term * c8_list[i] + c6_list[i]
+            term = max(left_term, c9_list[i])
+            c11_list.append(term)
+
+        return c11_list 
 
     def calculate_C6(self, c3):
         P = max(self.primes)
@@ -230,6 +244,19 @@ class Constants:
             n1_bound = max(n1_bound, first_term, euler_term, C6)
         return n1_bound
 
+    def calculate_bugeaud_constant(self, prime):
+        """
+        Calculates Bugeaud constant as defined in the paper and in their paper
+        on bounding a linear form in two p-adic logarithms.
+        """
+        # First, indirectly calculates the residual degree of the extension by
+        # calculating the ramification index
+        square_free_part = squarefree_part(self.delta)
+        residual_degree = 1 if square_free_part % prime == 0 else 2
+
+        term = 947 * (prime ** residual_degree) / ((math.log(prime) ** 4))
+        return term
+
     def log_star(self, x):
         return math.log(max(x, 1))
 
@@ -240,6 +267,7 @@ if __name__ == "__main__":
         b = 1,
         A = 1,
         B = 1,
+        delta = 5,
         alpha = (1 + sqrt(5))/2,
         beta = (1 - sqrt(5))/2,
         num_terms = 2,
