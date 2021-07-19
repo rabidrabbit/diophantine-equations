@@ -188,7 +188,7 @@ class Constants:
 
         for t in range(2, self.num_terms + 1):
             numerator = self.calculate_Dt(t, Nt_list, C5t_list, d0, d1) + math.log(self.calculate_C4t(t, d0))
-            alpha_over_beta = self.alpha / self.beta
+            alpha_over_beta = self.alpha / abs(self.beta)
             denominator = math.log(min(alpha_over_beta, self.alpha))
             term = numerator / denominator
             Nt_list.append(term)
@@ -196,7 +196,8 @@ class Constants:
         return Nt_list
 
     def calculate_Dt(self, t, Nt_list, C5t_list, d0, d1):
-        coefficient = 1.4 * (30 ** 5) * (2 ** 4.5) * 4
+        num_primes = len(self.primes)
+        coefficient = 1.4 * (30 ** (num_primes + 5)) * ((num_primes + 2) ** 4.5) * 4
         numeric_constant = coefficient * (1 + math.log(2)) * (1 + math.log(d1)) * (2 * math.log(self.alpha))
         prime_constant = math.prod([2 * math.log(p) for p in self.primes])
         t_term = C5t_list[t - 1]
@@ -215,7 +216,7 @@ class Constants:
     def calculate_d2(self):
         max_a = max(abs(self.a), 1/abs(self.a))
         max_b = max(abs(self.b), 1/abs(self.b))
-        return max(max_a, max_b)
+        return max(max_a, max_b) + 1
 
     def calculate_Z_bounds(self, n1_bound):
         """

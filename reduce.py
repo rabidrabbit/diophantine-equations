@@ -1,5 +1,5 @@
 import math
-from constants import Constants, log_p
+from constants import Constants, padic_log, padic_order
 from itertools import combinations
 from sage.all import *
 
@@ -8,6 +8,7 @@ class BoundReduce:
         print("initialized.")
         self.constants = constants
         self.coefficients = constants.calculate_constants()
+        print(self.coefficients)
         print("done calculating")
 
     def real_reduce(self):
@@ -42,15 +43,18 @@ class BoundReduce:
                 if tau == 1:
                     p_ideal = K.primes_above(p)[0]
                     p_order = L(padic_log(alpha / beta, p_ideal, prec=50).norm()).ordp()
-                    new_bound = math.log(self.coefficients.N_bounds[i], p) + p_order + z0
+                    new_bound = math.log(self.coefficients["n1_bound"], p) + p_order + z0
                     Z_bounds.append(max(z0 + 3/2, new_bound))
                 else:
-                    r = math.ceil(math.log(self.coefficients.N_bounds[i], p))
+                    r = math.ceil(math.log(self.coefficients["n1_bound"], p))
                     p_ideal = K.primes_above(p)[0]
                     zeta = padic_log(tau, p_ideal, prec=50) / padic_log(beta / alpha, p_ideal, prec=50)
+                    vzeta = padic_order(zeta.norm(), p)
                     zeta_list = zeta.list()
+                    print(zeta.norm())
+                    print(vzeta)
                     print(zeta_list) 
-                    R_max = find_Rmax(50)
+                    R_max = self.find_Rmax(50, vzeta, zeta_list)
                     if R_max == -1:
                         raise ValueError("no max value of R found for " + str(t_vec))
 
@@ -61,11 +65,15 @@ class BoundReduce:
         denominator = 1 + sum([beta ** t for t in t_vec])
         return numerator / denominator
 
-    def find_Rmax(self, r, zeta_list, tries=50):
+    def find_Rmax(self, r, vzeta, zeta_list, tries=50):
         Rmax = -1
         for i in range(r, r + tries):
-            if zeta_list[i - vzeta] != None:
-                break
+            # Checks if i is a valid index
+            if i - vzeta >= 0 and i - vzeta < len(zeta_list):
+                if i > Rmax:
+                    Rmax = i
+            elif i == r + tries - 1:
+                print("warning: no R found...")
         return Rmax
 
 if __name__ == "__main__":
@@ -76,9 +84,10 @@ if __name__ == "__main__":
         B = 1,
         alpha = (1 + math.sqrt(5))/2,
         beta = (1 - math.sqrt(5))/2,
+        delta = 5,
         num_terms = 3,
         w = 1,
-        primes = [2, 3, 5]
+        primes = [2, 3, 5, 7, 11, 13, 17]
     )
 
     br = BoundReduce(constants_gen)
