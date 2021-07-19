@@ -30,11 +30,13 @@ class BoundReduce:
         Z_bounds = []
         for i in range(len(self.constants.primes)):
             p = self.constants.primes[i]
-            L = Qp(p)
+            r = math.ceil(math.log(self.coefficients["n1_bound"], p))
+            tries = 50
+            L = Qp(p, r + tries + 10)
+            current_z_bounds = []
             for t_vec in combinations(list(range(1, bound + 1)), self.constants.num_terms):
                 tau = self.calculate_tau(t_vec, alpha, beta)
 
-                print("tau: " + str(tau))
                 z0_left_term = self.constants.a * (1 + sum([alpha ** t for t in t_vec]))
                 z0_right_term = alpha - beta
                 z0 = L(z0_left_term.norm()).ordp() - L(z0_right_term.norm()).ordp()
@@ -46,18 +48,40 @@ class BoundReduce:
                     new_bound = math.log(self.coefficients["n1_bound"], p) + p_order + z0
                     Z_bounds.append(max(z0 + 3/2, new_bound))
                 else:
-                    r = math.ceil(math.log(self.coefficients["n1_bound"], p))
-                    p_ideal = K.primes_above(p)[0]
-                    zeta = padic_log(tau, p_ideal, prec=50) / padic_log(beta / alpha, p_ideal, prec=50)
-                    vzeta = padic_order(zeta.norm(), p)
-                    zeta_list = zeta.list()
-                    print(zeta.norm())
-                    print(vzeta)
-                    print(zeta_list) 
-                    R_max = self.find_Rmax(50, vzeta, zeta_list)
-                    if R_max == -1:
-                        raise ValueError("no max value of R found for " + str(t_vec))
+                    # Assumes SAGE hasn't implemented general polynomial extensions.
+                    try:
+                        M = L.extension(x ** 2 - self.constants.A * x - self.constants.B, names="padic_root1")
+                        alpha = M.gen(0)
+                        beta = self.constants.A - alpha
+                        tau = (1 + sum([alpha ** t for t in t_vec])) / (1 + sum([beta ** t for t in t_vec]))
+                    except NotImplementedError:
+                        print("ramified polynomial extension was attempted.")
+                        # Symbolically calculates sqrt(delta)
+                        M = L.extension(x ** 2 - self.constants.delta, names="padic_root1")
 
+                        # Reconstruct alpha and beta
+                        alpha = (self.constants.A + M.gen(0)) / 2
+                        beta = self.constants.A - alpha
+                        tau = (1 + sum([alpha ** t for t in t_vec])) / (1 + sum([beta ** t for t in t_vec]))
+                    # Remember that zeta is in Q_p, not in the field extension.
+                    zeta = log(tau) / log(alpha / beta)
+                    vzeta = zeta.norm().ordp()
+                    zeta_list = list(zeta.expansion())
+                    print("zeta: " + str(zeta))
+                    print("vzeta: " + str(vzeta))
+                    print("zeta_list: " + str(zeta_list)) 
+                    R_max = self.find_Rmax(50, vzeta, zeta_list)
+
+                    if R_max == -1:
+                        m0 = self.find_m0(p, zeta_list)
+                        z_bound = math.log(self.coefficients["n1_bound"] - m0, p) + (alpha / beta).ordp() + z0
+                    else:
+                        zeta_inverse = log(alpha / beta) / log(tau)
+                        vzeta_inverse = zeta_inverse.ordp()
+                        z_bound = log(tau).ordp() + R_max + vzeta_inverse
+
+                    current_z_bounds.append(z_bound)
+            Z_bounds.append(max(current_z_bounds))
         return Z_bounds
 
     def calculate_tau(self, t_vec, alpha, beta):
@@ -69,12 +93,20 @@ class BoundReduce:
         Rmax = -1
         for i in range(r, r + tries):
             # Checks if i is a valid index
-            if i - vzeta >= 0 and i - vzeta < len(zeta_list):
+            if zeta_list[i - vzeta] != []:
                 if i > Rmax:
                     Rmax = i
             elif i == r + tries - 1:
                 print("warning: no R found...")
         return Rmax
+
+    def find_m0(self, p, zeta_list):
+        # In this case, it must be the case that zeta is an integer.
+        m0 = 0
+        for i in range(len(zeta_list)):
+            if zeta_list[i] != []:
+                m0 += (p ** i) * zeta_list[i][0]
+        return m0
 
 if __name__ == "__main__":
     constants_gen = Constants(
