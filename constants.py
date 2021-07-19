@@ -40,12 +40,12 @@ class Constants:
         c1 = self.num_terms * (abs(self.a) + abs(self.b))/self.sqrtdelta
         self.constants["c1"] = c1
 
-        c2 = self.log_star(c1) / (math.log(self.alpha) * abs(self.w))
+        c2 = self.log_star(c1 / abs(self.w)) / math.log(self.alpha)
         self.constants["c2"] = c2
 
         golden_ratio = (1 + math.sqrt(5))/2
-        c3_left_term = self.log_star(2 * self.num_terms * abs(self.b) * golden_ratio / (math.log(self.alpha) * abs(self.a) * (golden_ratio - 1)))
-        c3_right_term = self.log_star(2 * self.num_terms * abs(self.b) * golden_ratio / (math.log(abs(self.alpha / self.beta)) * abs(self.a) * (golden_ratio - 1)))
+        c3_left_term = self.log_star(2 * self.num_terms * abs(self.b) * golden_ratio / (abs(self.a) * (golden_ratio - 1))) / math.log(self.alpha)
+        c3_right_term = self.log_star(2 * self.num_terms * abs(self.b) * golden_ratio / (abs(self.a) * (golden_ratio - 1))) / math.log(abs(self.alpha / self.beta))
         c3 = max(c3_left_term, c3_right_term)
         self.constants["c3"] = c3
 
@@ -121,12 +121,11 @@ class Constants:
             """
             Uses the approach from X et al., as opposed to the original
             implementation of the p-adic logarithm in SAGE
-            L(log_p(a/(1 - a), p1, 50).absolute_norm()).ordp()
             """
             p = self.primes[i]
             p_ideal = K.primes_above(p)[0]
             alpha_over_beta = K.gen(0) / (self.A - K.gen(0))
-            p_order = padic_order(padic_log(alpha_over_beta, p_ideal, prec=50).norm(), p)
+            p_order = padic_order(padic_log(alpha_over_beta, p_ideal, prec=50).norm(), p) / 2
             term = p_order + (2 / math.log(p)) + c6_list[i]
             c9_list.append(term)
         return c9_list
@@ -180,7 +179,7 @@ class Constants:
     def calculate_C5t_list(self, d2):
         C5t_list = [None]
         for t in range(2, self.num_terms + 1):
-            term = 2 * (math.log(d2) + 0.5 * math.log(self.sqrtdelta)) + t * math.log(4)
+            term = 2 * (math.log(d2) + math.log(self.sqrtdelta)) + t * math.log(4)
             C5t_list.append(term)
         return C5t_list
         
@@ -190,7 +189,7 @@ class Constants:
         for t in range(2, self.num_terms + 1):
             numerator = self.calculate_Dt(t, Nt_list, C5t_list, d0, d1) + math.log(self.calculate_C4t(t, d0))
             alpha_over_beta = self.alpha / self.beta
-            denominator = math.log(max(alpha_over_beta, self.alpha))
+            denominator = math.log(min(alpha_over_beta, self.alpha))
             term = numerator / denominator
             Nt_list.append(term)
 
@@ -198,12 +197,12 @@ class Constants:
 
     def calculate_Dt(self, t, Nt_list, C5t_list, d0, d1):
         coefficient = 1.4 * (30 ** 5) * (2 ** 4.5) * 4
-        numeric_constant = coefficient * 4 * (1 + math.log(2)) * (1 + math.log(d1)) * (2 * math.log(self.alpha))
+        numeric_constant = coefficient * (1 + math.log(2)) * (1 + math.log(d1)) * (2 * math.log(self.alpha))
         prime_constant = math.prod([2 * math.log(p) for p in self.primes])
         t_term = C5t_list[t - 1]
         sum_Nt = 0 if t == 2 else sum(Nt_list[1:(t - 1)])
 
-        term = numeric_constant * prime_constant * (t_term + sum_Nt)
+        term = numeric_constant * prime_constant * (t_term + 2 * math.log(self.alpha) * sum_Nt)
 
         return term
 
