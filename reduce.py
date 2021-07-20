@@ -4,12 +4,10 @@ from itertools import combinations
 from sage.all import *
 
 class BoundReduce:
-    def __init__(self, constants):
-        print("initialized.")
+    def __init__(self, constants, tries=50):
         self.constants = constants
         self.coefficients = constants.calculate_constants()
-        print(self.coefficients)
-        print("done calculating")
+        self.tries = tries
 
     def real_reduce(self):
         return
@@ -19,59 +17,39 @@ class BoundReduce:
         Employs methodology from Pink and Zieglier (2016).
         """
         # Extremely unlikely edge case.
-        if bound < 1:
+        if bound < self.constants.num_terms:
             raise ValueError("bounds are already sufficient.")
-
-        var('x')
-        K = NumberField(x ** 2 - self.constants.A * x - self.constants.B, name='y')
-        alpha = K.gen(0)
-        beta = self.constants.A - alpha
 
         Z_bounds = []
         for i in range(len(self.constants.primes)):
             p = self.constants.primes[i]
             r = math.ceil(math.log(self.coefficients["n1_bound"], p))
-            tries = 50
-            L = Qp(p, r + tries + 10)
-            current_z_bounds = []
+            L = Qp(p, r + self.tries + 10)
+
+            current_z_bound = -1
             for t_vec in combinations(list(range(1, bound + 1)), self.constants.num_terms):
-                tau = self.calculate_tau(t_vec, alpha, beta)
+                sqrtdelta_p = self.calculate_sqrtdelta_p(p)
+                alpha = (self.constants.A + sqrtdelta_p) / 2
+                beta = self.constants.A - alpha
 
                 z0_left_term = self.constants.a * (1 + sum([alpha ** t for t in t_vec]))
                 z0_right_term = alpha - beta
                 z0 = L(z0_left_term.norm()).ordp() - L(z0_right_term.norm()).ordp()
 
+                tau = self.calculate_tau(t_vec, alpha, beta)
+
                 # Unlikely case, and we may assume the p-adic log is injective for our purposes.
                 if tau == 1:
-                    p_ideal = K.primes_above(p)[0]
-                    p_order = L(padic_log(alpha / beta, p_ideal, prec=50).norm()).ordp()
+                    p_order = log(alpha / beta).norm().ordp() / 2
                     new_bound = math.log(self.coefficients["n1_bound"], p) + p_order + z0
                     Z_bounds.append(max(z0 + 3/2, new_bound))
                 else:
-                    # Assumes SAGE hasn't implemented general polynomial extensions.
-                    try:
-                        M = L.extension(x ** 2 - self.constants.A * x - self.constants.B, names="padic_root1")
-                        alpha = M.gen(0)
-                        beta = self.constants.A - alpha
-                        tau = (1 + sum([alpha ** t for t in t_vec])) / (1 + sum([beta ** t for t in t_vec]))
-                    except NotImplementedError:
-                        print("ramified polynomial extension was attempted.")
-                        # Symbolically calculates sqrt(delta)
-                        M = L.extension(x ** 2 - self.constants.delta, names="padic_root1")
-
-                        # Reconstruct alpha and beta
-                        alpha = (self.constants.A + M.gen(0)) / 2
-                        beta = self.constants.A - alpha
-                        tau = (1 + sum([alpha ** t for t in t_vec])) / (1 + sum([beta ** t for t in t_vec]))
                     # Remember that zeta is in Q_p, not in the field extension.
                     zeta = log(tau) / log(alpha / beta)
                     vzeta = zeta.norm().ordp()
                     zeta_list = list(zeta.expansion())
-                    print("zeta: " + str(zeta))
-                    print("vzeta: " + str(vzeta))
-                    print("zeta_list: " + str(zeta_list)) 
-                    R_max = self.find_Rmax(50, vzeta, zeta_list)
 
+                    R_max = self.find_Rmax(50, vzeta, zeta_list)
                     if R_max == -1:
                         m0 = self.find_m0(p, zeta_list)
                         z_bound = math.log(self.coefficients["n1_bound"] - m0, p) + (alpha / beta).ordp() + z0
@@ -79,15 +57,28 @@ class BoundReduce:
                         zeta_inverse = log(alpha / beta) / log(tau)
                         vzeta_inverse = zeta_inverse.ordp()
                         z_bound = log(tau).ordp() + R_max + vzeta_inverse
-
-                    current_z_bounds.append(z_bound)
-            Z_bounds.append(max(current_z_bounds))
+                    current_z_bound = max(current_z_bound, z_bound)
+            Z_bounds.append(current_z_bound)
         return Z_bounds
 
     def calculate_tau(self, t_vec, alpha, beta):
         numerator = 1 + sum([alpha ** t for t in t_vec])
         denominator = 1 + sum([beta ** t for t in t_vec])
         return numerator / denominator
+
+    def calculate_sqrtdelta_p(self, p):
+        """
+        Returns sqrt(delta) in p-adic representation
+        """
+        var('x')
+        sqrtdelta = None
+        try:
+            M = Qp(p).extension(x ** 2 - self.constants.delta, names="padicroot")
+            sqrtdelta = K.gen(0)
+        except NotImplementedError:
+            M = Qp(p)
+            sqrtdelta = M(self.constants.delta).sqrt()
+        return sqrtdelta
 
     def find_Rmax(self, r, vzeta, zeta_list, tries=50):
         Rmax = -1
