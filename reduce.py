@@ -24,13 +24,12 @@ class BoundReduce:
         for i in range(len(self.constants.primes)):
             p = self.constants.primes[i]
             r = math.ceil(math.log(self.coefficients["n1_bound"], p))
-            L = Qp(p, r + self.tries + 10)
+            prec = r + self.tries + 10
+            L = Qp(p, prec)
 
             current_z_bound = -1
             for t_vec in combinations(list(range(1, bound + 1)), self.constants.num_terms):
-                sqrtdelta_p = self.calculate_sqrtdelta_p(p)
-                alpha = (self.constants.A + sqrtdelta_p) / 2
-                beta = self.constants.A - alpha
+                alpha, beta = self.calculate_alphabeta(p, prec)
 
                 z0_left_term = self.constants.a * (1 + sum([alpha ** t for t in t_vec]))
                 z0_right_term = alpha - beta
@@ -66,19 +65,29 @@ class BoundReduce:
         denominator = 1 + sum([beta ** t for t in t_vec])
         return numerator / denominator
 
-    def calculate_sqrtdelta_p(self, p):
+    def calculate_alphabeta(self, p, prec):
         """
         Returns sqrt(delta) in p-adic representation
         """
         var('x')
         sqrtdelta = None
         try:
-            M = Qp(p).extension(x ** 2 - self.constants.delta, names="padicroot")
+            M = Qp(p, prec).extension(x ** 2 - self.constants.delta, names="padicroot")
             sqrtdelta = K.gen(0)
         except NotImplementedError:
-            M = Qp(p)
-            sqrtdelta = M(self.constants.delta).sqrt()
-        return sqrtdelta
+            try:
+                M = Qp(p, prec)
+                sqrtdelta = M(self.constants.delta).sqrt()
+            except:
+                # Exceptional case (i.e. p = 2).
+                M = Qp(p, prec).extension(x ** 2 - self.constants.A * x - self.constants.B, names="padicroot")
+                alpha = M.gen(0)
+                beta = self.constants.A - alpha
+                return (alpha, beta)
+
+        alpha = (self.constants.A + sqrtdelta) / 2
+        beta = self.constants.A - alpha
+        return (alpha, beta)
 
     def find_Rmax(self, r, vzeta, zeta_list, tries=50):
         Rmax = -1
