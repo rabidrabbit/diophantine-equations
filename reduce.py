@@ -9,8 +9,26 @@ class BoundReduce:
         self.coefficients = constants.calculate_constants()
         self.tries = tries
 
-    def real_reduce(self):
+    def real_reduce(self, bound, large_constant):
+        """
+        Integral version of the LLL algorithm, where no rational operations are done.
+        See de Weger's thesis for more information.
+        """
+        approximation_matrix = self.generate_approximation_matrix(large_constant)
+        LLL_matrix = approximation_matrix.transpose().LLL().transpose()
+        print(LLL_matrix)
         return
+
+    def generate_approximation_matrix(self, large_constant):
+        n = len(self.constants.primes)
+        primes_row = [round(large_constant * log(p)) for p in self.constants.primes]
+        approximation_matrix = []
+        for i in range(n):
+            zero_row = [0] * n
+            zero_row[i] = 1
+            approximation_matrix.append(zero_row)
+        approximation_matrix[n - 1] = primes_row
+        return Matrix(ZZ, approximation_matrix)
 
     def padic_reduce(self, bound):
         """
@@ -57,8 +75,12 @@ class BoundReduce:
                         vzeta_inverse = zeta_inverse.ordp()
                         z_bound = log(tau).ordp() + R_max + vzeta_inverse
                     current_z_bound = max(current_z_bound, z_bound)
+            print(current_z_bound)
             Z_bounds.append(current_z_bound)
         return Z_bounds
+
+    def cont_fraction_reduce(self):
+        return
 
     def calculate_tau(self, t_vec, alpha, beta):
         numerator = 1 + sum([alpha ** t for t in t_vec])
@@ -119,8 +141,9 @@ if __name__ == "__main__":
         delta = 5,
         num_terms = 3,
         w = 1,
-        primes = [2, 3, 5, 7, 11, 13, 17]
+        primes = [2, 3, 5]
     )
 
     br = BoundReduce(constants_gen)
-    br.padic_reduce(3000)
+    br.real_reduce(500, 10**100)
+    #br.padic_reduce(3000)
