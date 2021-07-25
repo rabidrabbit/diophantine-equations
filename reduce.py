@@ -1,25 +1,81 @@
+"""
+Class for reducing upper-bounds on the parameters of our Diophantine equations.
+
+@authors: Brian Ha, Lily MacBeath, Luisa Velasco
+"""
+
+
 import math
+import logging
 from constants import Constants, padic_log, padic_order
 from itertools import combinations
 from sage.all import *
 
 class BoundReduce:
-    def __init__(self, constants, tries=50):
+    def __init__(self, constants, threshold = 0.05, tries=50, flags = {}):
+        """
+        Initialization of the BoundReduce class.
+        Threshold defines the minimum percentage reduction for another iteration of the reduction
+        process to occur.
+        """
         self.constants = constants
         self.coefficients = constants.calculate_constants()
+        self.threshold = threshold
         self.tries = tries
+        self.flags = flags
+
+    def reduce(self, threshold):
+        """
+        Completely reduces the upper-bound.
+        """
+        real_reduction_iterations = 0
+        padic_reduction_iterations = 0
+        cont_reduction_iterations = 0
+
+        # First, go through the real reduction loop.
+        current_n1_bound = self.coefficients['n1_bound']
+        while True:
+            if (current_n1_bound - self.coefficients['n1_bound']) / self.coefficients['n1_bound'] < self.threshold:
+                break
+            else:
+                real_reduction_iterations += 1
+                current_n1_bound = self.coefficients['n1_bound']
+                self.update_constants()
+
+
+        # Second, go through the p-adic reduction loop.
+
+        return self.constants
+
+    def update_constants(self, bound):
+        self.constants.update_constants(bound)
+        self.coefficients = self.constants.get_coefficients()
+        return
+
+    def calculate_large_constant(self, bound, factor):
+        """
+        Calculates an appropriate large constant given a bound.
+        """
+        minimum_exponent = math.log(bound, 10) * factor
+        return minimum_exponent
 
     def real_reduce(self, bound, large_constant):
         """
-        Integral version of the LLL algorithm, where no rational operations are done.
-        See de Weger's thesis for more information.
+        Finds a better upper-bound on our values as defined in the procedure within our paper.
         """
         approximation_matrix = self.generate_approximation_matrix(large_constant)
-        LLL_matrix = approximation_matrix.transpose().LLL().transpose()
-        print(LLL_matrix)
-        return
+        LLL_matrix = self.generate_LLL_matrix(approximation_matrix)
+        GS_matrix = self.generate_GS_matrix(LLL_matrix) 
+        minimal_vector_bound = self.calculate_minimal_vector_bound(large_constant, LLL_matrix, GS_matrix)
+        S, T = self.calculate_S_and_T()
+        new_bound = self.real_reduce_new_bound(large_constant, minimal_vector_bound, S, T)
+        return new_bound
 
     def generate_approximation_matrix(self, large_constant):
+        """
+        Generates approximation matrix needed for LLL computations.
+        Note that we prepare the matrix assuming its columns generate the lattice.
+        """
         n = len(self.constants.primes)
         primes_row = [round(large_constant * log(p)) for p in self.constants.primes]
         approximation_matrix = []
@@ -29,6 +85,77 @@ class BoundReduce:
             approximation_matrix.append(zero_row)
         approximation_matrix[n - 1] = primes_row
         return Matrix(ZZ, approximation_matrix)
+
+    def generate_LLL_matrix(self, matrix):
+        """
+        Assumes the input is formatted such that the column generates the lattice,
+        and returns a matrix whose columns still generate the lattice.
+        """
+        return matrix.transpose().LLL().transpose()
+
+    def generate_GS_matrix(self, matrix):
+        """
+        Assumes the input is formatted such that the column generates the lattice,
+        and returns a matrix whose columns still generate the lattice.
+        """
+        return Matrix(QQ, matrix.transpose().gram_schmidt()[0]).transpose()
+
+    def calculate_minimal_vector_bound(self, large_constant, LLL_matrix, GS_matrix, prec=100):
+        """
+        Calculates a lower-bound for the minimal vector.
+        Names of the constants are named according to the paper.
+        """
+        R = RealField(prec)
+        n = len(self.constants.primes)
+
+        # First, verify if y is in the lattice.
+        vy = [0 for _ in range(n)]
+        eta_0 = R(self.constants.w * sqrt(self.constants.delta) / self.constants.a)
+        vy[-1] = -math.floor(R(large_constant * eta_0)) 
+        vy = vector(ZZ, vy)
+
+        # Second, calculate the constants needed.
+        sigma = self.calculate_sigma(LLL_matrix, vy, prec)
+        c2 = max([LLL_matrix.column(i).norm()**2 / GS_matrix.column(i).norm()**2 for i in range(len(n))]) 
+
+        # Lastly, calculate the lower-bound.
+        minimal_vector_bound = (1 / c2) * sigma * LLL_matrix.column(0).norm()**2
+        return minimal_vector_bound
+
+    def calculate_sigma(self, LLL_matrix, vy, prec=100):
+        """
+        Calculates the value of sigma, which is the distance from the last non-zero entry
+        in the passed-in vector to the nearest integer.
+
+        A modified implementation of minimal_vector() from SAGE's S_unit_solver.
+        """
+        R = RealField(prec)
+        z = (LLL_matrix.inverse()) * vy
+        z_diff = []
+        for elem in z:
+            current_term = R(elem - elem.round())
+            if current_term != 0:
+                z_diff.append(current_term)
+        return 1 if len(z_diff) == 0 else z_diff[-1]
+
+    def calculate_S_and_T(self, z_bounds):
+        """
+        Calculate the values S and T to find a better bound on n_1 - n_k.
+        Note that X_i = Z_i, where Z_i represents the upper-bound on z_i.
+        """
+        S = sum([zb ** 2 for zb in z_bounds])
+        T = (self.coefficients['n1_bound'] + sum(z_bounds)) / 2 
+        return (S, T)
+
+    def real_reduce_new_bound(self, large_constant, minimal_vector_bound, S, T):
+        """
+        Calculates a new bound on (n_1 - n_k), given appropriate values.
+        Names of constants correspond to the names defined in the paper.
+        """
+        c3 = 2 + 2 * k * abs(self.constants.b) / abs(self.constants.a)
+        c4 = math.log(min(abs(self.constants.alpha / self.constants.beta), self.constants.alpha))
+        new_bound = (1 / c4) * (math.log(large_constant * c3) - math.log(math.sqrt(minimal_vector_bound**2 - S) T))
+        return new_bound
 
     def padic_reduce(self, bound):
         """
@@ -89,7 +216,9 @@ class BoundReduce:
 
     def calculate_alphabeta(self, p, prec):
         """
-        Returns sqrt(delta) in p-adic representation
+        Returns (alpha, beta) as a tuple in p-adic representation.
+        Attempts to get around NotImplementedError from SAGE by extending the
+        field Qp in different ways (i.e. using some ideas from Hensel's lemma).
         """
         var('x')
         sqrtdelta = None
@@ -100,7 +229,7 @@ class BoundReduce:
             try:
                 M = Qp(p, prec)
                 sqrtdelta = M(self.constants.delta).sqrt()
-            except:
+            except NotImplementedError:
                 # Exceptional case (i.e. p = 2).
                 M = Qp(p, prec).extension(x ** 2 - self.constants.A * x - self.constants.B, names="padicroot")
                 alpha = M.gen(0)
