@@ -39,7 +39,7 @@ class BoundReduce:
         Completely reduces the upper-bound.
         """
         def percentage_change(old, new):
-            return abs(new - old) / old
+            return (new - old) / old
         real_reduction_iterations = 0
         padic_reduction_iterations = 0
         cont_reduction_iterations = 0
@@ -50,7 +50,7 @@ class BoundReduce:
             real_reduction_iterations += 1
             logging.info("Real Reduction - Iteration %d" % real_reduction_iterations)
 
-            large_constant = self.calculate_large_constant(current_n1_bound, 10)
+            large_constant = self.calculate_large_constant(current_n1_bound, len(self.constants.primes) + 1)
             logging.info("Large constant contains %d digits " % large_constant.ndigits())
 
             # Find a new bound on n_1 - n_k
@@ -58,7 +58,7 @@ class BoundReduce:
             logging.info("Current bound on n1: " + str(current_n1_bound))
             self.update_constants(new_diff_bound)
             logging.info("New bound on n1: " + str(self.coefficients["n1_bound"]))
-
+            
             if (current_n1_bound - self.coefficients['n1_bound']) / self.coefficients['n1_bound'] < self.threshold:
                 logging.info("New bound did not improve; real reduction process is done.")
                 break
@@ -133,7 +133,7 @@ class BoundReduce:
         R = RealField(prec)
         n = len(self.constants.primes)
 
-        # First, verify if y is in the lattice.
+        # First, setup the vector vy.
         vy = [0 for _ in range(n)]
         eta_0 = R(self.constants.w * sqrt(self.constants.delta) / self.constants.a)
         vy[-1] = -R(large_constant * eta_0).floor() 
@@ -158,7 +158,7 @@ class BoundReduce:
         z = (LLL_matrix.inverse()) * vy
         z_diff = []
         for elem in z:
-            current_term = R(elem - elem.round())
+            current_term = abs(R(elem - elem.round()))
             if current_term != 0:
                 z_diff.append(current_term)
         return 1 if len(z_diff) == 0 else z_diff[-1]
@@ -177,9 +177,9 @@ class BoundReduce:
         Calculates a new bound on (n_1 - n_k), given appropriate values.
         Names of constants correspond to the names defined in the paper.
         """
-        c3 = 2 + 2 * self.constants.num_terms * abs(self.constants.b) / abs(self.constants.a)
-        c4 = math.log(min(abs(self.constants.alpha / self.constants.beta), self.constants.alpha))
-        new_bound = (1 / c4) * (math.log(large_constant * c3) - math.log(math.sqrt(minimal_vector_bound**2 - S) * T))
+        c3 = RR(2 + 2 * self.constants.num_terms * abs(self.constants.b) / abs(self.constants.a))
+        c4 = RR(math.log(min(abs(self.constants.alpha / self.constants.beta), self.constants.alpha))) 
+        new_bound = (1 / c4) * (log(RR(large_constant) * c3) - log(sqrt(RR(minimal_vector_bound)**2 - RR(S)) - RR(T)))
         return new_bound
 
     def padic_reduce(self, bound):
