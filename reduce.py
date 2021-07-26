@@ -24,10 +24,22 @@ class BoundReduce:
         self.tries = tries
         self.flags = flags
 
+        self.initialize_flags()
+
+    def initialize_flags(self):
+        if self.flags["DEBUG_FLAG"]:
+            logging.basicConfig(level=logging.INFO)
+            logging.info("Verbose mode on.")
+
+    def print_summary(self):
+        return
+
     def reduce(self, threshold):
         """
         Completely reduces the upper-bound.
         """
+        def percentage_change(old, new):
+            return abs(new - old) / old
         real_reduction_iterations = 0
         padic_reduction_iterations = 0
         cont_reduction_iterations = 0
@@ -35,19 +47,32 @@ class BoundReduce:
         # First, go through the real reduction loop.
         current_n1_bound = self.coefficients['n1_bound']
         while True:
-            if (current_n1_bound - self.coefficients['n1_bound']) / self.coefficients['n1_bound'] < self.threshold:
-                break
-            else:
-                real_reduction_iterations += 1
-                current_n1_bound = self.coefficients['n1_bound']
-                self.update_constants()
+            real_reduction_iterations += 1
+            logging.info("Real Reduction - Iteration %d" % real_reduction_iterations)
 
+            large_constant = self.calculate_large_constant(current_n1_bound, 10)
+            logging.info("Large constant contains %d digits " % large_constant.ndigits())
+
+            # Find a new bound on n_1 - n_k
+            new_diff_bound = self.real_reduce(current_n1_bound, large_constant)
+            logging.info("Current bound on n1: " + str(current_n1_bound))
+            self.update_constants(new_diff_bound)
+            logging.info("New bound on n1: " + str(self.coefficients["n1_bound"]))
+
+            if (current_n1_bound - self.coefficients['n1_bound']) / self.coefficients['n1_bound'] < self.threshold:
+                logging.info("New bound did not improve; real reduction process is done.")
+                break
+
+            current_n1_bound = self.coefficients['n1_bound']
 
         # Second, go through the p-adic reduction loop.
 
         return self.constants
 
     def update_constants(self, bound):
+        """
+        Updates the constants given new bounds on n_1 - n_k.
+        """
         self.constants.update_constants(bound)
         self.coefficients = self.constants.get_coefficients()
         return
@@ -56,8 +81,8 @@ class BoundReduce:
         """
         Calculates an appropriate large constant given a bound.
         """
-        minimum_exponent = math.log(bound, 10) * factor
-        return minimum_exponent
+        minimum_exponent = math.ceil(math.log(bound, 10) * factor)
+        return ZZ(10 ** minimum_exponent)
 
     def real_reduce(self, bound, large_constant):
         """
@@ -67,7 +92,7 @@ class BoundReduce:
         LLL_matrix = self.generate_LLL_matrix(approximation_matrix)
         GS_matrix = self.generate_GS_matrix(LLL_matrix) 
         minimal_vector_bound = self.calculate_minimal_vector_bound(large_constant, LLL_matrix, GS_matrix)
-        S, T = self.calculate_S_and_T()
+        S, T = self.calculate_S_and_T(self.coefficients["Z_bounds"])
         new_bound = self.real_reduce_new_bound(large_constant, minimal_vector_bound, S, T)
         return new_bound
 
@@ -111,12 +136,12 @@ class BoundReduce:
         # First, verify if y is in the lattice.
         vy = [0 for _ in range(n)]
         eta_0 = R(self.constants.w * sqrt(self.constants.delta) / self.constants.a)
-        vy[-1] = -math.floor(R(large_constant * eta_0)) 
+        vy[-1] = -R(large_constant * eta_0).floor() 
         vy = vector(ZZ, vy)
 
         # Second, calculate the constants needed.
         sigma = self.calculate_sigma(LLL_matrix, vy, prec)
-        c2 = max([LLL_matrix.column(i).norm()**2 / GS_matrix.column(i).norm()**2 for i in range(len(n))]) 
+        c2 = max([LLL_matrix.column(i).norm()**2 / GS_matrix.column(i).norm()**2 for i in range(n)]) 
 
         # Lastly, calculate the lower-bound.
         minimal_vector_bound = (1 / c2) * sigma * LLL_matrix.column(0).norm()**2
@@ -152,9 +177,9 @@ class BoundReduce:
         Calculates a new bound on (n_1 - n_k), given appropriate values.
         Names of constants correspond to the names defined in the paper.
         """
-        c3 = 2 + 2 * k * abs(self.constants.b) / abs(self.constants.a)
+        c3 = 2 + 2 * self.constants.num_terms * abs(self.constants.b) / abs(self.constants.a)
         c4 = math.log(min(abs(self.constants.alpha / self.constants.beta), self.constants.alpha))
-        new_bound = (1 / c4) * (math.log(large_constant * c3) - math.log(math.sqrt(minimal_vector_bound**2 - S) T))
+        new_bound = (1 / c4) * (math.log(large_constant * c3) - math.log(math.sqrt(minimal_vector_bound**2 - S) * T))
         return new_bound
 
     def padic_reduce(self, bound):
@@ -273,6 +298,6 @@ if __name__ == "__main__":
         primes = [2, 3, 5]
     )
 
-    br = BoundReduce(constants_gen)
-    br.real_reduce(500, 10**100)
+    br = BoundReduce(constants_gen, flags={"DEBUG_FLAG": True})
+    br.reduce(threshold=0.05)
     #br.padic_reduce(3000)

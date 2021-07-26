@@ -35,6 +35,9 @@ class Constants:
         self.primes = primes
 
         self.constants = {}
+
+    def get_coefficients(self):
+        return self.constants
     
     def calculate_constants(self):
         c1 = self.num_terms * (abs(self.a) + abs(self.b))/self.sqrtdelta
@@ -94,6 +97,22 @@ class Constants:
         self.constants["Z_bounds"] = Z_bounds
 
         return self.constants
+
+    def update_constants(self, diff_bound):
+        """
+        Given a new bound on n_1 - n_k, recalculate the bounds on n_1 and z_i.
+        """
+        self.constants["Nt_list"][-1] = diff_bound
+        n1_bound = self.calculate_n1_bound(
+                self.constants["C6"],
+                self.constants["c10_list"],
+                self.constants["Nt_list"]
+        )
+        self.constants["n1_bound"] = n1_bound
+
+        Z_bounds = self.calculate_Z_bounds(n1_bound)
+        self.constants["Z_bounds"] = Z_bounds
+        return
 
     def calculate_c6_list(self):
         """
