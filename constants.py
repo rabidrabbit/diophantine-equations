@@ -70,8 +70,8 @@ class Constants:
         c11_list = self.calculate_c11_list(c6_list, c8_list, c9_list)
         self.constants["c11_list"] = c11_list
 
-        c10_list = self.calculate_c10_list(c5, c11_list)
-        self.constants["c10_list"] = c10_list
+        c10 = self.calculate_c10(c5, c11_list)
+        self.constants["c10"] = c10
 
         d0 = self.calculate_d0()
         self.constants["d0"] = d0
@@ -90,7 +90,7 @@ class Constants:
         C6 = self.calculate_C6(c3)
         self.constants["C6"] = C6
 
-        n1_bound = self.calculate_n1_bound(C6, c10_list, Nt_list)
+        n1_bound = self.calculate_n1_bound(C6, c10, Nt_list)
         self.constants["n1_bound"] = n1_bound
 
         Z_bounds = self.calculate_Z_bounds(n1_bound)
@@ -102,17 +102,25 @@ class Constants:
         """
         Given a new bound on n_1 - n_k, recalculate the bounds on n_1 and z_i.
         """
-        self.constants["Nt_list"][-1] = diff_bound
-        n1_bound = self.calculate_n1_bound(
+        n1_bound = self.calculate_new_n1_bound(
                 self.constants["C6"],
-                self.constants["c10_list"],
-                self.constants["Nt_list"]
+                self.constants["c10"],
+                diff_bound
         )
         self.constants["n1_bound"] = n1_bound
 
         Z_bounds = self.calculate_Z_bounds(n1_bound)
         self.constants["Z_bounds"] = Z_bounds
         return
+
+    def update_padic_constants(self, Z_bounds):
+        """
+        Given new bounds on z_i, re-calculate the bounds on n_1.
+        """
+        sum_l = sum([Z_bounds[i] * math.log(self.primes[i]) for i in range(len(Z_bounds))])
+        n1_bound = sum_l / math.log(self.alpha) + self.constants["c5"]
+        self.constants["n1_bound"] = n1_bound
+        return n1_bound
 
     def calculate_c6_list(self):
         """
@@ -149,13 +157,10 @@ class Constants:
             c9_list.append(term)
         return c9_list
 
-    def calculate_c10_list(self, c5, c11_list):
-        c10_list = []
-        for i in range(len(self.primes)):
-            sum_l = sum([c11_list[i] * math.log(p) for p in self.primes])
-            term = sum_l / math.log(self.alpha) + c5
-            c10_list.append(term)
-        return c10_list
+    def calculate_c10(self, c5, c11_list):
+        sum_l = sum([c11_list[i] * math.log(self.primes[i]) for i in range(len(self.primes))])
+        term = sum_l / math.log(self.alpha) + c5
+        return term
     
     def calculate_c11_list(self, c6_list, c8_list, c9_list):
         c11_list = []
@@ -248,19 +253,26 @@ class Constants:
             Z_bounds.append(term)
         return Z_bounds
 
-    def calculate_n1_bound(self, C6, c10_list, Nt_list):
+    def calculate_n1_bound(self, C6, c10, Nt_list):
         """
         Calculates bounds on n_1 (i.e. the parameters of the recurrence sequence).
         """
         n1_bound = -1
         power_of_2 = 2 ** (self.num_terms + 1)
         Nk = Nt_list[self.num_terms - 1]
-        for i in range(len(self.primes)):
-            kth_root_term = math.pow(c10_list[i] * (self.num_terms - 1) * Nk, 1/(self.num_terms + 1))
-            log_term = math.log( (self.num_terms + 1) ** (self.num_terms + 1) * c10_list[i] * (self.num_terms - 1) * Nk )
-            first_term = power_of_2 * (kth_root_term * log_term) ** (self.num_terms + 1)
-            euler_term = (2 * math.e) ** (2 * self.num_terms + 2)
-            n1_bound = max(n1_bound, first_term, euler_term, C6)
+        kth_root_term = math.pow(c10 * (self.num_terms - 1) * Nk, 1/(self.num_terms + 1))
+        log_term = math.log( (self.num_terms + 1) ** (self.num_terms + 1) * c10 * (self.num_terms - 1) * Nk )
+        first_term = power_of_2 * (kth_root_term * log_term) ** (self.num_terms + 1)
+        euler_term = (2 * math.e) ** (2 * self.num_terms + 2)
+        n1_bound = max(n1_bound, first_term, euler_term, C6)
+        return n1_bound
+
+    def calculate_new_n1_bound(self, C6, c10, diff_bound):
+        n1_bound = -1
+        common_term = 4 * c10 * ((self.num_terms - 1) * diff_bound - 1)
+        left_term = common_term * (log(common_term) ** 2)
+        euler_term = 16 * (math.e ** 4)
+        n1_bound = max(n1_bound, left_term, euler_term)
         return n1_bound
 
     def calculate_bugeaud_constant(self, prime):
@@ -295,4 +307,4 @@ if __name__ == "__main__":
     )
 
     c = constants.calculate_constants()
-    print(c)
+    print(c['c10_list'])

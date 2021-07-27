@@ -39,43 +39,69 @@ class BoundReduce:
         Completely reduces the upper-bound.
         """
         def percentage_change(old, new):
-            return (new - old) / old
+            return (old - new) / old
         real_reduction_iterations = 0
         padic_reduction_iterations = 0
         cont_reduction_iterations = 0
+        factor = len(self.constants.primes) + 1
 
         # First, go through the real reduction loop.
         current_n1_bound = self.coefficients['n1_bound']
+        current_diff_bound = None
         while True:
             real_reduction_iterations += 1
             logging.info("Real Reduction - Iteration %d" % real_reduction_iterations)
 
-            large_constant = self.calculate_large_constant(current_n1_bound, len(self.constants.primes) + 1)
+            large_constant = self.calculate_large_constant(current_n1_bound, factor)
             logging.info("Large constant contains %d digits " % large_constant.ndigits())
 
             # Find a new bound on n_1 - n_k
             new_diff_bound = self.real_reduce(current_n1_bound, large_constant)
             logging.info("Current bound on n1: " + str(current_n1_bound))
-            self.update_constants(new_diff_bound)
+            self.update_real_constants(new_diff_bound)
+            logging.info("new diff bound: " + str(new_diff_bound))
             logging.info("New bound on n1: " + str(self.coefficients["n1_bound"]))
             
-            if (current_n1_bound - self.coefficients['n1_bound']) / self.coefficients['n1_bound'] < self.threshold:
-                logging.info("New bound did not improve; real reduction process is done.")
+            if percentage_change(current_n1_bound, self.coefficients["n1_bound"]) < self.threshold:
+                logging.info("New bound did not improve in the real step; real reduction process is done.")
+                factor = factor + 5
                 break
 
             current_n1_bound = self.coefficients['n1_bound']
+            current_diff_bound = new_diff_bound
 
         # Second, go through the p-adic reduction loop.
+        current_Z_bounds = self.coefficients['Z_bounds']
+        while True:
+            padic_reduction_iterations += 1
+            logging.info("p-adic Reduction - Iteration %d" % padic_reduction_iterations)
+
+            new_Z_bounds = self.padic_reduce(math.ceil(current_diff_bound))
+            logging.info("Current bound on n1: " + str(current_n1_bound))
+            new_n1_bound = self.update_padic_constants(new_Z_bounds)
+            logging.info("New bound on n1: " + str(new_n1_bound))
+            if percentage_change(current_n1_bound, new_n1_bound) < self.threshold:
+                logging.info("New bound did not improve in the p-adic step; p-adic reduction process is done.")
+                break
+
+            current_n1_bound = new_n1_bound
+
+        print(current_n1_bound)
 
         return self.constants
 
-    def update_constants(self, bound):
+    def update_real_constants(self, diff_bound):
         """
         Updates the constants given new bounds on n_1 - n_k.
         """
-        self.constants.update_constants(bound)
+        self.constants.update_constants(diff_bound)
         self.coefficients = self.constants.get_coefficients()
         return
+
+    def update_padic_constants(self, Z_bounds):
+        n1_bound = self.constants.update_padic_constants(Z_bounds)
+        self.coefficients = self.constants.get_coefficients()
+        return n1_bound
 
     def calculate_large_constant(self, bound, factor):
         """
@@ -101,8 +127,9 @@ class BoundReduce:
         Generates approximation matrix needed for LLL computations.
         Note that we prepare the matrix assuming its columns generate the lattice.
         """
-        n = len(self.constants.primes)
+        n = len(self.constants.primes) + 1
         primes_row = [round(large_constant * log(p)) for p in self.constants.primes]
+        primes_row.append(round(RR(large_constant) * log(self.constants.alpha)))
         approximation_matrix = []
         for i in range(n):
             zero_row = [0] * n
@@ -116,14 +143,16 @@ class BoundReduce:
         Assumes the input is formatted such that the column generates the lattice,
         and returns a matrix whose columns still generate the lattice.
         """
-        return matrix.transpose().LLL().transpose()
+        LLL_matrix = matrix.transpose().LLL().transpose()
+        return LLL_matrix
 
     def generate_GS_matrix(self, matrix):
         """
         Assumes the input is formatted such that the column generates the lattice,
         and returns a matrix whose columns still generate the lattice.
         """
-        return Matrix(QQ, matrix.transpose().gram_schmidt()[0]).transpose()
+        GS_matrix = Matrix(QQ, matrix.transpose().gram_schmidt()[0]).transpose()
+        return GS_matrix
 
     def calculate_minimal_vector_bound(self, large_constant, LLL_matrix, GS_matrix, prec=100):
         """
@@ -131,7 +160,7 @@ class BoundReduce:
         Names of the constants are named according to the paper.
         """
         R = RealField(prec)
-        n = len(self.constants.primes)
+        n = len(self.constants.primes) + 1
 
         # First, setup the vector vy.
         vy = [0 for _ in range(n)]
@@ -177,7 +206,7 @@ class BoundReduce:
         Calculates a new bound on (n_1 - n_k), given appropriate values.
         Names of constants correspond to the names defined in the paper.
         """
-        c3 = RR(2 + 2 * self.constants.num_terms * abs(self.constants.b) / abs(self.constants.a))
+        c3 = RR(2 + 4 * self.constants.num_terms * abs(self.constants.b) / abs(self.constants.a))
         c4 = RR(math.log(min(abs(self.constants.alpha / self.constants.beta), self.constants.alpha))) 
         new_bound = (1 / c4) * (log(RR(large_constant) * c3) - log(sqrt(RR(minimal_vector_bound)**2 - RR(S)) - RR(T)))
         return new_bound
@@ -194,7 +223,7 @@ class BoundReduce:
         for i in range(len(self.constants.primes)):
             p = self.constants.primes[i]
             r = math.ceil(math.log(self.coefficients["n1_bound"], p))
-            prec = r + self.tries + 10
+            prec = r + self.tries + 20
             L = Qp(p, prec)
 
             current_z_bound = -1
@@ -218,7 +247,7 @@ class BoundReduce:
                     vzeta = zeta.norm().ordp()
                     zeta_list = list(zeta.expansion())
 
-                    R_max = self.find_Rmax(50, vzeta, zeta_list)
+                    R_max = self.find_Rmax(r, vzeta, zeta_list)
                     if R_max == -1:
                         m0 = self.find_m0(p, zeta_list)
                         z_bound = math.log(self.coefficients["n1_bound"] - m0, p) + (alpha / beta).ordp() + z0
@@ -227,7 +256,6 @@ class BoundReduce:
                         vzeta_inverse = zeta_inverse.ordp()
                         z_bound = log(tau).ordp() + R_max + vzeta_inverse
                     current_z_bound = max(current_z_bound, z_bound)
-            print(current_z_bound)
             Z_bounds.append(current_z_bound)
         return Z_bounds
 
@@ -249,7 +277,7 @@ class BoundReduce:
         sqrtdelta = None
         try:
             M = Qp(p, prec).extension(x ** 2 - self.constants.delta, names="padicroot")
-            sqrtdelta = K.gen(0)
+            sqrtdelta = M.gen(0)
         except NotImplementedError:
             try:
                 M = Qp(p, prec)
@@ -273,7 +301,7 @@ class BoundReduce:
                 if i > Rmax:
                     Rmax = i
             elif i == r + tries - 1:
-                print("warning: no R found...")
+                logging.debug("No R found for Rmax...")
         return Rmax
 
     def find_m0(self, p, zeta_list):
@@ -295,9 +323,9 @@ if __name__ == "__main__":
         delta = 5,
         num_terms = 3,
         w = 1,
-        primes = [2, 3, 5]
+        primes = [3]
     )
 
     br = BoundReduce(constants_gen, flags={"DEBUG_FLAG": True})
-    br.reduce(threshold=0.05)
+    br.reduce(threshold=0.01)
     #br.padic_reduce(3000)
