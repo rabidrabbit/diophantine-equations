@@ -8,7 +8,7 @@ Class for reducing upper-bounds on the parameters of our Diophantine equations.
 import math
 import logging
 from constants import Constants, padic_log, padic_order
-from itertools import combinations
+from itertools import combinations_with_replacement
 from sage.all import *
 
 class BoundReduce:
@@ -61,6 +61,7 @@ class BoundReduce:
 
             # Find a new bound on n_1 - n_k
             new_diff_bound = self.real_reduce(current_n1_bound, large_constant)
+
             logging.info("Current bound on n1: " + str(current_n1_bound))
             self.update_real_constants(new_diff_bound)
             logging.info("New bound on n1 - nk: " + str(new_diff_bound))
@@ -168,7 +169,8 @@ class BoundReduce:
         # First, setup the vector vy.
         vy = [0 for _ in range(n)]
         eta_0 = R(self.constants.w * sqrt(self.constants.delta) / self.constants.a)
-        vy[-1] = -R(large_constant * math.log(eta_0)).floor() 
+        vy[-1] = -R(large_constant) * R(math.log(eta_0))
+        vy[-1] = vy[-1].floor()
         vy = vector(ZZ, vy)
 
         # Second, calculate the constants needed.
@@ -230,6 +232,7 @@ class BoundReduce:
 
             # Pre-computation step (i.e. memoization)
             alpha, beta = self.calculate_alphabeta(p, prec)
+            alpha_over_beta_ordp = (alpha / beta).ordp()
             alpha_t = self.precompute_t_power(alpha, diff_bound)
             beta_t = self.precompute_t_power(beta, diff_bound)
             z0_right_term = L((alpha - beta).norm()).ordp()
@@ -238,7 +241,7 @@ class BoundReduce:
             # Pre-computations for tau == 1 
             p_order = log_alpha_over_beta.norm().ordp() / 2
 
-            for t_vec in combinations(list(range(1, diff_bound + 1)), self.constants.num_terms - 1):
+            for t_vec in combinations_with_replacement(list(range(1, diff_bound + 1)), self.constants.num_terms - 1):
                 z0_left_term = self.constants.a * (1 + sum([alpha_t[t - 1] for t in t_vec]))
                 z0 = L(z0_left_term.norm()).ordp() - z0_right_term
                 tau = self.calculate_tau(t_vec, alpha_t, beta_t)
@@ -249,15 +252,15 @@ class BoundReduce:
                     Z_bounds.append(max(z0 + 3/2, new_bound))
                 else:
                     # Remember that zeta is in Q_p, not in the field extension.
-                    log_tau = tau.log()
+                    log_tau = tau.log(p_branch=0)
                     zeta = log_tau / log_alpha_over_beta
-                    vzeta = zeta.norm().ordp()
+                    vzeta = zeta.ordp()
                     zeta_list = self.get_expansion(prec, zeta)
 
                     R_max = self.find_Rmax(r, vzeta, zeta_list)
                     if R_max == -1:
                         m0 = self.find_m0(p, zeta_list)
-                        z_bound = math.log(self.coefficients["n1_bound"] - m0, p) + (alpha / beta).ordp() + z0
+                        z_bound = math.log(self.coefficients["n1_bound"] - m0, p) + alpha_over_beta_ordp + z0
                     else:
                         zeta_inverse = log_alpha_over_beta / log_tau
                         vzeta_inverse = zeta_inverse.ordp()
@@ -265,9 +268,6 @@ class BoundReduce:
                     current_z_bound = max(current_z_bound, z_bound)
             Z_bounds.append(current_z_bound)
         return Z_bounds
-
-    def cont_fraction_reduce(self):
-        return
 
     def precompute_t_power(self, term, diff_bound):
         return [term ** i for i in range(1, diff_bound + 1)]
@@ -341,6 +341,7 @@ class BoundReduce:
             if zeta_list[i] != []:
                 m0 += (p ** i) * zeta_list[i][0]
         return m0
+
 
 if __name__ == "__main__":
     constants_gen = Constants(
