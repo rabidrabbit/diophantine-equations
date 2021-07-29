@@ -7,7 +7,7 @@ Class for reducing upper-bounds on the parameters of our Diophantine equations.
 
 import math
 import logging
-from constants import Constants, padic_log, padic_order
+from constants import Constants, padic_order
 from itertools import combinations_with_replacement
 from sage.all import *
 
@@ -231,7 +231,7 @@ class BoundReduce:
             current_z_bound = -1
 
             # Pre-computation step (i.e. memoization)
-            alpha, beta = self.calculate_alphabeta(p, prec)
+            alpha, beta = self.constants.calculate_alphabeta(p, prec)
             alpha_over_beta_ordp = (alpha / beta).ordp()
             alpha_t = self.precompute_t_power(alpha, diff_bound)
             beta_t = self.precompute_t_power(beta, diff_bound)
@@ -276,32 +276,6 @@ class BoundReduce:
         numerator = 1 + sum([beta_t[t - 1] for t in t_vec])
         denominator = 1 + sum([alpha_t[t - 1] for t in t_vec])
         return (self.constants.b * numerator) / (self.constants.a * denominator)
-
-    def calculate_alphabeta(self, p, prec):
-        """
-        Returns (alpha, beta) as a tuple in p-adic representation.
-        Attempts to get around NotImplementedError from SAGE by extending the
-        field Qp in different ways (i.e. using some ideas from Hensel's lemma).
-        """
-        var('x')
-        sqrtdelta = None
-        try:
-            M = Qp(p, prec).extension(x ** 2 - self.constants.delta, names="padicroot")
-            sqrtdelta = M.gen(0)
-        except NotImplementedError:
-            try:
-                M = Qp(p, prec)
-                sqrtdelta = M(self.constants.delta).sqrt()
-            except NotImplementedError:
-                # Exceptional case.
-                M = Qp(p, prec).extension(x ** 2 - self.constants.A * x - self.constants.B, names="padicroot")
-                alpha = M.gen(0)
-                beta = self.constants.A - alpha
-                return (alpha, beta)
-
-        alpha = (self.constants.A + sqrtdelta) / 2
-        beta = self.constants.A - alpha
-        return (alpha, beta)
 
     def get_expansion(self, prec, padic_num):
         """
@@ -352,9 +326,9 @@ if __name__ == "__main__":
         alpha = (1 + math.sqrt(5))/2,
         beta = (1 - math.sqrt(5))/2,
         delta = 5,
-        num_terms = 4,
+        num_terms = 3,
         w = 1,
-        primes = [2, 3, 5, 7]
+        primes = [3]
     )
 
     br = BoundReduce(constants_gen, flags={"DEBUG_FLAG": True})

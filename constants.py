@@ -5,9 +5,9 @@ find an upper-bound on our parameters.
 @authors: Brian Ha, Lily McBeath, Luisa Velasco
 """
 import math
+import operator
 from fractions import Fraction
 from sage.all import *
-from sage.rings.number_field.S_unit_solver import log_p
 
 def get_primes_list(min_num, max_num):
     return list(primes(max_num))
@@ -223,7 +223,7 @@ class Constants:
         num_primes = len(self.primes)
         coefficient = 1.4 * (30 ** (num_primes + 5)) * ((num_primes + 2) ** 4.5) * 4
         numeric_constant = coefficient * (1 + math.log(2)) * (1 + math.log(d1)) * (2 * math.log(self.alpha))
-        prime_constant = math.prod([2 * math.log(p) for p in self.primes])
+        prime_constant = reduce(operator.mul, [2 * math.log(p) for p in self.primes])
         t_term = C5t_list[t - 1]
         sum_Nt = 0 if t == 2 else sum(Nt_list[1:(t - 1)])
 
