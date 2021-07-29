@@ -250,7 +250,7 @@ class BoundReduce:
                 # Unlikely case, and we may assume the p-adic log is injective for our purposes.
                 if tau == 1:
                     new_bound = math.log(self.coefficients["n1_bound"], p) + p_order + z0
-                    Z_bounds.append(max(z0 + 3/2, new_bound))
+                    current_z_bound = max(z0 + 3/2, new_bound, current_z_bound)
                 else:
                     # Remember that zeta is in Q_p, not in the field extension.
                     log_tau = tau.log(p_branch=0)
@@ -328,9 +328,9 @@ if __name__ == "__main__":
         alpha = (2 + math.sqrt(8))/2,
         beta = (2 - math.sqrt(8))/2,
         delta = 8,
-        num_terms = 4,
+        num_terms = 2,
         w = 1,
-        primes = [2, 3, 5]
+        primes = [2]
     )
 
     br = BoundReduce(constants_gen, flags={"DEBUG_FLAG": True})
