@@ -10,6 +10,7 @@ import logging
 from constants import Constants, padic_order
 from itertools import combinations_with_replacement
 from sage.all import *
+from timeit import default_timer as timer
 
 class BoundReduce:
     def __init__(self, constants, threshold=0.05, tries=50, flags = {}):
@@ -81,7 +82,7 @@ class BoundReduce:
             padic_reduction_iterations += 1
             logging.info("p-adic Reduction - Iteration %d" % padic_reduction_iterations)
 
-            new_Z_bounds = self.padic_reduce(math.ceil(current_diff_bound))
+            new_Z_bounds = self.padic_reduce(ceil(current_diff_bound))
             logging.info("Current bound on n1: " + str(current_n1_bound))
             new_n1_bound = self.update_padic_constants(new_Z_bounds)
             logging.info("New bound on n1: " + str(new_n1_bound))
@@ -111,7 +112,7 @@ class BoundReduce:
         """
         Calculates an appropriate large constant given a bound.
         """
-        minimum_exponent = math.ceil(math.log(bound, 10) * factor)
+        minimum_exponent = ceil(math.log(bound, 10) * factor)
         return ZZ(10 ** minimum_exponent)
 
     def real_reduce(self, bound, large_constant):
@@ -224,7 +225,7 @@ class BoundReduce:
         for i in range(len(self.constants.primes)):
             p = self.constants.primes[i]
             logging.info("Examining the prime %d for the p-adic reduction." % p)
-            r = math.ceil(math.log(self.coefficients["n1_bound"], p))
+            r = ceil(math.log(self.coefficients["n1_bound"], p))
             prec = r + self.tries + 10
             L = Qp(p, prec)
 
@@ -318,6 +319,7 @@ class BoundReduce:
 
 
 if __name__ == "__main__":
+    start = timer()
     constants_gen = Constants(
         a = 1,
         b = 1,
@@ -333,4 +335,5 @@ if __name__ == "__main__":
 
     br = BoundReduce(constants_gen, flags={"DEBUG_FLAG": True})
     br.reduce(threshold=0.01)
-    #br.padic_reduce(3000)
+    end = timer()
+    print(end - start)
