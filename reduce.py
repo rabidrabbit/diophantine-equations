@@ -241,8 +241,8 @@ class BoundReduce:
             # Pre-computations for tau == 1 
             p_order = log_alpha_over_beta.norm().ordp() / 2
 
-            for t_vec in combinations_with_replacement(list(range(1, diff_bound + 1)), self.constants.num_terms - 1):
-                z0_left_term = self.constants.a * (1 + sum([alpha_t[t - 1] for t in t_vec]))
+            for t_vec in combinations_with_replacement(list(range(0, diff_bound + 1)), self.constants.num_terms - 1):
+                z0_left_term = self.constants.a * (1 + sum([alpha_t[t] for t in t_vec]))
                 z0 = L(z0_left_term.norm()).ordp() - z0_right_term
                 tau = self.calculate_tau(t_vec, alpha_t, beta_t)
 
@@ -270,11 +270,11 @@ class BoundReduce:
         return Z_bounds
 
     def precompute_t_power(self, term, diff_bound):
-        return [term ** i for i in range(1, diff_bound + 1)]
+        return [term ** i for i in range(0, diff_bound + 1)]
 
     def calculate_tau(self, t_vec, alpha_t, beta_t):
-        numerator = 1 + sum([beta_t[t - 1] for t in t_vec])
-        denominator = 1 + sum([alpha_t[t - 1] for t in t_vec])
+        numerator = 1 + sum([beta_t[t] for t in t_vec])
+        denominator = 1 + sum([alpha_t[t] for t in t_vec])
         return (self.constants.b * numerator) / (self.constants.a * denominator)
 
     def get_expansion(self, prec, padic_num):
@@ -321,14 +321,14 @@ if __name__ == "__main__":
     constants_gen = Constants(
         a = 1,
         b = 1,
-        A = 1,
+        A = 2,
         B = 1,
-        alpha = (1 + math.sqrt(5))/2,
-        beta = (1 - math.sqrt(5))/2,
-        delta = 5,
-        num_terms = 3,
+        alpha = (2 + math.sqrt(8))/2,
+        beta = (2 - math.sqrt(8))/2,
+        delta = 8,
+        num_terms = 4,
         w = 1,
-        primes = [3]
+        primes = [2, 3, 5]
     )
 
     br = BoundReduce(constants_gen, flags={"DEBUG_FLAG": True})

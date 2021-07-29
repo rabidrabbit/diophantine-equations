@@ -296,15 +296,19 @@ class Constants:
         """
         var('x')
         sqrtdelta = None
+        squarefree_part_delta = squarefree_part(self.delta)
+        square_part_delta = sqrt(self.delta / squarefree_part(self.delta))
+
         try:
-            M = Qp(p, prec).extension(x ** 2 - self.delta, names="padicroot")
-            sqrtdelta = M.gen(0)
+            M = Qp(p, prec).extension(x ** 2 - squarefree_part_delta, names="padicroot")
+            sqrtdelta = square_part_delta * M.gen(0)
         except NotImplementedError:
             try:
                 M = Qp(p, prec)
                 sqrtdelta = M(self.delta).sqrt()
             except NotImplementedError:
                 # Exceptional case.
+                print(p)
                 M = Qp(p, prec).extension(x ** 2 - self.A * x - self.B, names="padicroot")
                 alpha = M.gen(0)
                 beta = self.A - alpha
