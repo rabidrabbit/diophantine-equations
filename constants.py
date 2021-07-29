@@ -150,9 +150,9 @@ class Constants:
             implementation of the p-adic logarithm in SAGE
             """
             p = self.primes[i]
-            p_ideal = K.primes_above(p)[0]
-            alpha_over_beta = K.gen(0) / (self.A - K.gen(0))
-            p_order = padic_order(padic_log(alpha_over_beta, p_ideal, prec=50).norm(), p) / 2
+            sage_alpha, sage_beta = self.calculate_alphabeta(p, prec=100) 
+            alpha_over_beta = sage_alpha / sage_beta
+            p_order = padic_order(alpha_over_beta.norm(), p) / 2
             term = p_order + (2 / math.log(p)) + c6_list[i]
             c9_list.append(term)
         return c9_list
@@ -288,6 +288,32 @@ class Constants:
         term = 947 * (prime ** residual_degree) / ((math.log(prime) ** 4))
         return term
 
+    def calculate_alphabeta(self, p, prec):
+        """
+        Returns (alpha, beta) as a tuple in p-adic representation.
+        Attempts to get around NotImplementedError from SAGE by extending the
+        field Qp in different ways (i.e. using some ideas from Hensel's lemma).
+        """
+        var('x')
+        sqrtdelta = None
+        try:
+            M = Qp(p, prec).extension(x ** 2 - self.delta, names="padicroot")
+            sqrtdelta = M.gen(0)
+        except NotImplementedError:
+            try:
+                M = Qp(p, prec)
+                sqrtdelta = M(self.delta).sqrt()
+            except NotImplementedError:
+                # Exceptional case.
+                M = Qp(p, prec).extension(x ** 2 - self.A * x - self.B, names="padicroot")
+                alpha = M.gen(0)
+                beta = self.A - alpha
+                return (alpha, beta)
+
+        alpha = (self.A + sqrtdelta) / 2
+        beta = self.A - alpha
+        return (alpha, beta)
+
     def log_star(self, x):
         return math.log(max(x, 1))
 
@@ -307,4 +333,3 @@ if __name__ == "__main__":
     )
 
     c = constants.calculate_constants()
-    print(c['c10_list'])

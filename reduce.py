@@ -352,9 +352,9 @@ if __name__ == "__main__":
         alpha = (1 + math.sqrt(5))/2,
         beta = (1 - math.sqrt(5))/2,
         delta = 5,
-        num_terms = 3,
+        num_terms = 4,
         w = 1,
-        primes = [29]
+        primes = [2, 3, 5, 7]
     )
 
     br = BoundReduce(constants_gen, flags={"DEBUG_FLAG": True})
