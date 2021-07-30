@@ -203,7 +203,7 @@ class BoundReduce:
         Calculate the values S and T to find a better bound on n_1 - n_k.
         Note that X_i = Z_i, where Z_i represents the upper-bound on z_i.
         """
-        S = sum([zb ** 2 for zb in z_bounds])
+        S = sum([RR(zb) ** 2 for zb in z_bounds])
         T = (self.coefficients['n1_bound'] + sum(z_bounds)) / 2 
         return (S, T)
 

@@ -129,7 +129,7 @@ class Constants:
         c6_list = []
         for p in self.primes:
             term = math.log(self.num_terms * abs(self.a) * self.alpha) / math.log(p)
-            c6_list.append(term)
+            c6_list.append(RR(term))
         return c6_list
     
     def calculate_c8_list(self):
@@ -137,7 +137,7 @@ class Constants:
         k = self.num_terms
         c7 = max(math.log(abs(k * self.a * self.alpha)), math.log(abs(k * self.b * self.beta)), math.log(2 * self.b))
         for p in self.primes:
-            c8_list.append(max(c7, math.log(p)))
+            c8_list.append(RR(max(c7, math.log(p))))
         return c8_list
     
     def calculate_c9_list(self, c6_list):
@@ -263,16 +263,16 @@ class Constants:
         n1_bound = -1
         power_of_2 = 2 ** (self.num_terms + 1)
         Nk = Nt_list[self.num_terms - 1]
-        kth_root_term = math.pow(c10 * (self.num_terms - 1) * Nk, 1/(self.num_terms + 1))
-        log_term = math.log( (self.num_terms + 1) ** (self.num_terms + 1) * c10 * (self.num_terms - 1) * Nk )
+        kth_root_term = math.pow(c10 * Nk, 1/(self.num_terms + 1))
+        log_term = math.log( (self.num_terms + 1) ** (self.num_terms + 1) * c10 * Nk )
         first_term = power_of_2 * (kth_root_term * log_term) ** (self.num_terms + 1)
-        euler_term = (2 * math.e) ** (2 * self.num_terms + 2)
+        euler_term = RR(2 * math.e) ** (2 * self.num_terms + 2)
         n1_bound = max(n1_bound, first_term, euler_term, C6)
         return n1_bound
 
     def calculate_new_n1_bound(self, C6, c10, diff_bound):
         n1_bound = -1
-        common_term = 4 * c10 * ((self.num_terms - 1) * diff_bound - 1)
+        common_term = 4 * c10 * diff_bound
         left_term = common_term * (log(common_term) ** 2)
         euler_term = 16 * (math.e ** 4)
         n1_bound = max(n1_bound, left_term, euler_term)
