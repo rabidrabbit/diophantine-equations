@@ -241,8 +241,13 @@ class BoundReduce:
 
             # Pre-computations for tau == 1 
             p_order = log_alpha_over_beta.norm().ordp() / 2
+            iterations = 0
 
             for t_vec in combinations_with_replacement(list(range(0, diff_bound + 1)), self.constants.num_terms - 1):
+                iterations += 1
+                if iterations % 1000 == 0:
+                    print(iterations)
+
                 z0_left_term = self.constants.a * (1 + sum([alpha_t[t] for t in t_vec]))
                 z0 = L(z0_left_term.norm()).ordp() - z0_right_term
                 tau = self.calculate_tau(t_vec, alpha_t, beta_t)
@@ -328,9 +333,9 @@ if __name__ == "__main__":
         alpha = (2 + math.sqrt(8))/2,
         beta = (2 - math.sqrt(8))/2,
         delta = 8,
-        num_terms = 2,
+        num_terms = 4,
         w = 1,
-        primes = [2]
+        primes = [2, 3, 5]
     )
 
     br = BoundReduce(constants_gen, flags={"DEBUG_FLAG": True})

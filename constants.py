@@ -128,13 +128,14 @@ class Constants:
         """
         c6_list = []
         for p in self.primes:
-            term = math.log(2 * abs(self.a) * self.alpha) / math.log(p)
+            term = math.log(self.num_terms * abs(self.a) * self.alpha) / math.log(p)
             c6_list.append(term)
         return c6_list
     
     def calculate_c8_list(self):
         c8_list = []
-        c7 = max(math.log(abs(2 * self.a * self.alpha)), math.log(abs(2 * self.b * self.beta)))
+        k = self.num_terms
+        c7 = max(math.log(abs(k * self.a * self.alpha)), math.log(abs(k * self.b * self.beta)), math.log(2 * self.b))
         for p in self.primes:
             c8_list.append(max(c7, math.log(p)))
         return c8_list
@@ -175,8 +176,10 @@ class Constants:
 
     def calculate_C6(self, c3):
         P = max(self.primes)
-        sum_term = max(math.log(abs(2 * self.a * self.alpha)), math.log(abs(2 * self.b * self.beta))) + 0.24 / (self.num_terms - 1)
-        term = 17.5 * (self.num_terms - 1) * math.log(self.alpha) * sum_term
+        k = self.num_terms
+        c7 = max(math.log(abs(k * self.a * self.alpha)), math.log(abs(k * self.b * self.beta)), math.log(2 * self.b))
+        sum_term = c7 + 0.24
+        term = 17.5 * math.log(self.alpha) * sum_term
         C6 = max(c3, term, P ** 10)
         return C6
 
